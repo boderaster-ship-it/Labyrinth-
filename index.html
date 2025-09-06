@@ -1,1 +1,65 @@
-
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>FPV Labyrinth</title>
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#0b0f14;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    #hud{position:fixed;left:10px;top:10px;color:#e9eef6;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);padding:8px 10px;border-radius:10px;font-size:12px;z-index:10}
+    #err{position:fixed;left:10px;right:10px;top:10px;background:#300;color:#fff;padding:8px 10px;border-radius:10px;font-size:12px;display:none;white-space:pre-wrap;z-index:11}
+    #pad{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:grid;grid-template-columns:60px 60px 60px;grid-template-rows:60px 60px;gap:10px;z-index:10}
+    #pad button{font-size:26px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#e9eef6}
+    #pad button:active{transform:scale(0.96)}
+    #pad .up{grid-column:2;grid-row:1}
+    #pad .left{grid-column:1;grid-row:2}
+    #pad .down{grid-column:2;grid-row:2}
+    #pad .right{grid-column:3;grid-row:2}
+    #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:22px;text-align:center;z-index:20}
+    #win div{background:rgba(0,0,0,.6);padding:16px 20px;border-radius:14px}
+    #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b0f14;color:#e9eef6;z-index:30;flex-direction:column;text-align:center}
+    #menu button{margin:8px;padding:12px 16px;border:none;border-radius:12px;font-size:18px;background:#1e242b;color:#e9eef6}
+    #menu button:active{transform:scale(.97)}
+    #topBtn{position:fixed;right:10px;top:10px;z-index:10;padding:8px 10px;border:none;border-radius:10px;background:rgba(0,0,0,.35);color:#e9eef6;font-size:12px;display:none}
+    #backBtn{position:fixed;right:10px;top:50px;z-index:10;padding:8px 10px;border:none;border-radius:10px;background:rgba(0,0,0,.35);color:#e9eef6;font-size:12px;display:none}
+    #scoreboard{margin-top:10px;text-align:left;font-size:14px}
+    #timer{position:fixed;left:50%;top:10px;transform:translateX(-50%);color:#e9eef6;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);padding:8px 10px;border-radius:10px;font-size:12px;z-index:10;display:none}
+    #menuBtn{position:fixed;left:10px;bottom:10px;z-index:10;padding:8px 10px;border:none;border-radius:10px;background:rgba(0,0,0,.35);color:#e9eef6;font-size:12px;display:none}
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h1>FPV Labyrinth</h1>
+    <p>Wähle den Schwierigkeitsgrad:</p>
+    <button data-diff="easy">Einfach</button>
+    <button data-diff="medium">Mittel</button>
+    <button data-diff="hard">Schwer</button>
+  </div>
+  <div id="hud">FPV-Labyrinth</div>
+  <div id="timer"></div>
+  <div id="err"></div>
+  <button id="topBtn">Draufsicht</button>
+  <button id="backBtn">Zurück</button>
+  <button id="menuBtn">Menü</button>
+  <div id="pad">
+    <button class="up" aria-label="Vorwärts">▲</button>
+    <button class="left" aria-label="Links drehen">◀</button>
+    <button class="down" aria-label="Rückwärts">▼</button>
+    <button class="right" aria-label="Rechts drehen">▶</button>
+  </div>
+  <div id="win"><div>
+    <div id="winText">🎉 Geschafft!<br>Deine Zeit: <span id="finalTime"></span>s</div>
+    <div id="nameEntry" style="margin-top:10px;">
+      <input id="playerName" placeholder="Name" maxlength="12" style="padding:6px;border-radius:6px;border:none;">
+      <button id="submitScore" style="padding:6px 10px;border:none;border-radius:6px;background:#1e242b;color:#e9eef6">Senden</button>
+    </div>
+    <div id="scoreboard"></div>
+  </div></div>
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
