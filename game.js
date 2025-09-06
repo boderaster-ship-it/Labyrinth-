@@ -14,7 +14,6 @@
   // -------- DOM Elements --------
   const menu = document.getElementById('menu');
   const hud = document.getElementById('hud');
-  const pad = document.getElementById('pad');
   const win = document.getElementById('win');
   const winText = document.getElementById('winText');
   const finalTimeEl = document.getElementById('finalTime');
@@ -40,10 +39,14 @@
   let camPos=new THREE.Vector3();
   let anim=null;               // movement animation
   let viewMode='fp';           // 'fp' or 'top'
-  let topViewAllowed=false;    // easy: always; medium: at pads
+  let topViewAllowed=false;    // easy: always; medium: at special cells
   let viewCells=[];            // medium mode: cells enabling top view
   let startTime=0;             // timer
   let timerInterval=null;      // timer interval id
+  let autoForward=false;       // hold-to-move flag
+  let holdTimer=null;          // delay timer for auto move
+  let pointerDown=false;       // pointer state
+  let startX=0;                // pointer start x
 
   // -------- Three.js Setup --------
   const scene = new THREE.Scene();
@@ -74,7 +77,33 @@
   scene.add(new THREE.Mesh(skyGeo,skyMat));
 
   const floorMat = new THREE.MeshStandardMaterial({color:0x1e242b, roughness:0.95});
-  let floor=null, wallsGroup=null, goalSprite=null;
+  let floor=null, wallsGroup=null, goalSprite=null, playerMarker=null;
+
+  // simple clouds
+  const cloudTex=(function(){
+    const cv=document.createElement('canvas'); cv.width=128; cv.height=64; const ctx=cv.getContext('2d');
+    ctx.fillStyle='rgba(255,255,255,0)'; ctx.fillRect(0,0,128,64);
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.arc(32,32,32,0,Math.PI*2);
+    ctx.arc(64,24,32,0,Math.PI*2);
+    ctx.arc(96,32,32,0,Math.PI*2);
+    ctx.fill();
+    return new THREE.CanvasTexture(cv);
+  })();
+  const clouds=new THREE.Group();
+  for(let i=0;i<20;i++){
+    const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTex,transparent:true,opacity:0.8}));
+    spr.position.set(Math.random()*400-200,80+Math.random()*20,Math.random()*400-200);
+    const s=30+Math.random()*40; spr.scale.set(s,s*0.6,1); clouds.add(spr);
+  }
+  scene.add(clouds);
+
+  const sunMesh=new THREE.Mesh(new THREE.SphereBufferGeometry(3,16,8), new THREE.MeshBasicMaterial({color:0xfff0e0}));
+  scene.add(sunMesh);
+
+  playerMarker=new THREE.Mesh(new THREE.CircleBufferGeometry(S*0.3,16), new THREE.MeshBasicMaterial({color:0xffff00}));
+  playerMarker.rotation.x=-Math.PI/2; playerMarker.visible=false; scene.add(playerMarker);
 
   // -------- Maze Generation --------
   const DIRS=['N','E','S','W']; const DX=[0,1,0,-1]; const DY=[-1,0,1,0]; const OPP={N:'S',E:'W',S:'N',W:'E'};
@@ -134,11 +163,12 @@
 
     viewCells=[];
     if(currentDiff==='medium'){
-      const count=Math.max(2, Math.round(Math.sqrt(W*H)/6));
+      const count=Math.max(5, Math.round(Math.sqrt(W*H)/6));
       for(let i=0;i<count;i++) viewCells.push([Math.random()*W|0, Math.random()*H|0]);
     }
 
     px=0; py=0; dirIdx=1; heading=dirIdx*Math.PI/2; camPos=camPosForCell(px,py); camera.position.copy(camPos); lookFromHeading();
+    playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false;
   }
 
   function makeGoalSprite(txt){
@@ -159,24 +189,35 @@
 
   function startTurn(left){ if(anim||viewMode==='top') return; const from=heading; dirIdx=(dirIdx+(left?3:1))%4; let to=dirIdx*Math.PI/2; let d=to-from; if(d>Math.PI) d-=2*Math.PI; if(d<-Math.PI) d+=2*Math.PI; to=from+d; anim={type:'turn',t:0,dur:180,from,to}; }
 
-  function startMove(forward){ if(anim||viewMode==='top') return; const dir=dirIdx; const back=(dir+2)%4; const tryDir=forward?dir:back; if(!canMove(px,py,tryDir)){ blinkHUD('🧱'); return; } const dx=DX[tryDir],dy=DY[tryDir]; const nx=px+dx,ny=py+dy; const from=camPos.clone(); const to=camPosForCell(nx,ny); anim={type:'move',t:0,dur:240,from,to,nx,ny}; }
+  function startMove(forward){
+    if(anim||viewMode==='top') return;
+    const dir=dirIdx; const back=(dir+2)%4; const tryDir=forward?dir:back;
+    if(!canMove(px,py,tryDir)){ blinkHUD('🧱'); autoForward=false; return; }
+    const dx=DX[tryDir],dy=DY[tryDir]; const nx=px+dx,ny=py+dy;
+    const from=camPos.clone(); const to=camPosForCell(nx,ny);
+    anim={type:'move',t:0,dur:240,from,to,nx,ny};
+  }
 
   let hudBlinkTimer=null; function blinkHUD(text){ clearTimeout(hudBlinkTimer); const old=hud.textContent; hud.textContent=text; hud.style.background='rgba(180,0,0,.6)'; hudBlinkTimer=setTimeout(()=>{ hud.textContent=old; hud.style.background='rgba(0,0,0,.35)'; },450); }
 
   // -------- Controls --------
-  const btnUp=document.querySelector('#pad .up');
-  const btnDown=document.querySelector('#pad .down');
-  const btnLeft=document.querySelector('#pad .left');
-  const btnRight=document.querySelector('#pad .right');
-  const onTap=fn=>e=>{e.preventDefault(); fn();};
-  btnUp.addEventListener('touchstart',onTap(()=>startMove(true)),{passive:false});
-  btnDown.addEventListener('touchstart',onTap(()=>startMove(false)),{passive:false});
-  btnLeft.addEventListener('touchstart',onTap(()=>startTurn(true)),{passive:false});
-  btnRight.addEventListener('touchstart',onTap(()=>startTurn(false)),{passive:false});
-  btnUp.addEventListener('mousedown',onTap(()=>startMove(true)));
-  btnDown.addEventListener('mousedown',onTap(()=>startMove(false)));
-  btnLeft.addEventListener('mousedown',onTap(()=>startTurn(true)));
-  btnRight.addEventListener('mousedown',onTap(()=>startTurn(false)));
+  function attemptAutoMove(){ if(autoForward && !anim && viewMode==='fp') startMove(true); }
+
+  document.addEventListener('pointerdown',e=>{
+    if(viewMode!=='fp') return;
+    pointerDown=true; startX=e.clientX;
+    holdTimer=setTimeout(()=>{ autoForward=true; attemptAutoMove(); },500);
+  });
+  function stopHold(){ pointerDown=false; autoForward=false; clearTimeout(holdTimer); }
+  document.addEventListener('pointerup',stopHold);
+  document.addEventListener('pointercancel',stopHold);
+  document.addEventListener('pointerleave',stopHold);
+  document.addEventListener('pointermove',e=>{
+    if(!pointerDown) return;
+    const dx=e.clientX-startX; const thresh=40;
+    if(dx>thresh){ startTurn(false); startX=e.clientX; }
+    else if(dx<-thresh){ startTurn(true); startX=e.clientX; }
+  });
 
   window.addEventListener('keydown', e=>{ if(e.key==='ArrowUp')startMove(true); else if(e.key==='ArrowDown')startMove(false); else if(e.key==='ArrowLeft')startTurn(true); else if(e.key==='ArrowRight')startTurn(false); });
 
@@ -186,8 +227,21 @@
 
   // -------- Top View --------
   let savedHeading=0, savedPos=null;
-  function enterTopView(){ if(viewMode==='top') return; viewMode='anim'; savedHeading=heading; savedPos=camPos.clone(); anim={type:'top',t:0,dur:400,from:camPos.clone(),to:new THREE.Vector3(0, Math.max(W,H)*S*0.9, 0)}; topBtn.style.display='none'; backBtn.style.display='block'; pad.style.display='none'; }
-  function exitTopView(){ if(viewMode!=='top') return; viewMode='anim'; anim={type:'fp',t:0,dur:400,from:camPos.clone(),to:savedPos.clone(),fromHead:Math.PI/2,toHead:savedHeading}; backBtn.style.display='none'; pad.style.display='grid'; if(topViewAllowed || (currentDiff==='medium' && onViewCell(px,py))) topBtn.style.display='block'; }
+  function enterTopView(){
+    if(viewMode==='top') return;
+    viewMode='anim'; savedHeading=heading; savedPos=camPos.clone();
+    anim={type:'top',t:0,dur:400,from:camPos.clone(),to:new THREE.Vector3(0, Math.max(W,H)*S*0.9, 0)};
+    topBtn.style.display='none'; backBtn.style.display='block';
+    autoForward=false; clearTimeout(holdTimer);
+    playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=true;
+  }
+  function exitTopView(){
+    if(viewMode!=='top') return;
+    viewMode='anim';
+    anim={type:'fp',t:0,dur:400,from:camPos.clone(),to:savedPos.clone(),fromHead:Math.PI/2,toHead:savedHeading};
+    backBtn.style.display='none'; playerMarker.visible=false;
+    if(topViewAllowed || (currentDiff==='medium' && onViewCell(px,py))) topBtn.style.display='block';
+  }
   function onViewCell(x,y){ return viewCells.some(v=>v[0]===x && v[1]===y); }
 
   // -------- Timer & Leaderboard --------
@@ -213,14 +267,20 @@
     if(currentDiff==='easy'){ W=11; H=11; topViewAllowed=true; }
     else if(currentDiff==='medium'){ W=17; H=17; topViewAllowed=false; }
     else { W=25; H=25; topViewAllowed=false; }
-    menu.style.display='none'; hud.textContent='FPV-Labyrinth'; timerEl.textContent='0.0s'; menuBtn.style.display='block'; pad.style.display='grid'; if(topViewAllowed) topBtn.style.display='block'; else topBtn.style.display='none'; buildMaze(); startTimer(); }
+    menu.style.display='none'; hud.textContent='FPV-Labyrinth'; timerEl.textContent='0.0s'; menuBtn.style.display='block';
+    if(topViewAllowed) topBtn.style.display='block'; else topBtn.style.display='none';
+    buildMaze(); playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false; startTimer(); }
 
-  function resetToMenu(){ win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value=''; timerEl.style.display='none'; menuBtn.style.display='none'; pad.style.display='none'; topBtn.style.display='none'; backBtn.style.display='none'; viewMode='fp'; clearInterval(timerInterval); }
+  function resetToMenu(){
+    win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value='';
+    timerEl.style.display='none'; menuBtn.style.display='none'; topBtn.style.display='none'; backBtn.style.display='none';
+    viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false;
+  }
 
   // -------- Render Loop --------
   let last=performance.now();
   function loop(now){
-    const dt=now-last; last=now; const t=now*0.0007; sun.position.set(Math.sin(t)*60,60,Math.cos(t)*40);
+    const dt=now-last; last=now; const t=now*0.0007; sun.position.set(Math.sin(t)*60,60,Math.cos(t)*40); sunMesh.position.copy(sun.position);
     if(anim){
       anim.t+=dt/anim.dur; const k=anim.t<1?(1-Math.cos(anim.t*Math.PI))/2:1;
       if(anim.type==='turn'){ heading=anim.from+(anim.to-anim.from)*k; camera.position.copy(camPos); lookFromHeading(); }
@@ -230,10 +290,12 @@
       if(anim.t>=1){
         if(anim.type==='move'){
           px=anim.nx; py=anim.ny;
+          playerMarker.position.set(camPos.x,0.05,camPos.z);
           if(px===goal[0] && py===goal[1]) showWin();
           if(currentDiff==='medium'){ if(onViewCell(px,py)) topBtn.style.display='block'; else topBtn.style.display='none'; }
         }
         anim=null;
+        attemptAutoMove();
       }
     }
     renderer.render(scene,camera);
