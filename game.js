@@ -33,7 +33,7 @@
   const WALL_H=4;              // wall height
   const WALL_T=0.3;            // wall thickness
   const EYE=1.6;               // eye height
-  const MOVE_SPEED=3.9;        // movement speed units per second (30% faster)
+  const MOVE_SPEED=5.85;       // movement speed units per second (50% faster)
   const PLAYER_R=0.3;          // collision radius
   let maze=null, goal=null;
   let px=0,py=0,heading=0;
@@ -49,16 +49,20 @@
   let holdTimer=null;          // delay timer for auto move
   let pointerDown=false;       // pointer state
   let startX=0;                // pointer start x
+  let turnDir=0;               // -1 left, 1 right, 0 none
+  const ROT_SPEED=0.009;       // rotation per pixel (50% faster)
+  const EDGE_ROT_SPEED=1.5;    // radians/sec when holding at screen edge
+  const EDGE_ZONE=50;          // px from screen edge for continuous turning
 
   // -------- Three.js Setup --------
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0b0f14,0.02);
+  scene.fog = new THREE.FogExp2(0xaad5ff,0.008);
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.05, 800);
   const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.setClearColor(0x0b0f14,1);
+  renderer.setClearColor(0xaad5ff,1);
   document.body.appendChild(renderer.domElement);
 
   const hemi = new THREE.HemisphereLight(0xffffff,0x223344,0.7); scene.add(hemi);
@@ -71,7 +75,8 @@
     const cols=new Float32Array(skyGeo.attributes.position.count*3);
     for(let i=0;i<skyGeo.attributes.position.count;i++){
       const y=skyGeo.attributes.position.getY(i);
-      const t=(y+400)/800; const r=0.04+0.10*t,g=0.06+0.14*t,b=0.10+0.30*t;
+      const t=(y+400)/800;
+      const r=0.6-0.4*t, g=0.8-0.3*t, b=1.0-0.1*t;
       cols[i*3]=r; cols[i*3+1]=g; cols[i*3+2]=b;
     }
     skyGeo.setAttribute('color',new THREE.BufferAttribute(cols,3));
@@ -250,16 +255,22 @@
     if(viewMode!=='fp') return;
     pointerDown=true; startX=e.clientX;
     holdTimer=setTimeout(()=>{ autoForward=true; },500);
+    if(e.clientX<EDGE_ZONE) turnDir=-1;
+    else if(e.clientX>window.innerWidth-EDGE_ZONE) turnDir=1;
+    else turnDir=0;
   });
-  function stopHold(){ pointerDown=false; autoForward=false; clearTimeout(holdTimer); }
+  function stopHold(){ pointerDown=false; autoForward=false; turnDir=0; clearTimeout(holdTimer); }
   document.addEventListener('pointerup',stopHold);
   document.addEventListener('pointercancel',stopHold);
   document.addEventListener('pointerleave',stopHold);
   document.addEventListener('pointermove',e=>{
     if(!pointerDown || viewMode!=='fp') return;
     const dx=e.clientX-startX;
-    heading+=dx*0.006;
+    heading+=dx*ROT_SPEED;
     startX=e.clientX;
+    if(e.clientX<EDGE_ZONE) turnDir=-1;
+    else if(e.clientX>window.innerWidth-EDGE_ZONE) turnDir=1;
+    else turnDir=0;
     lookFromHeading();
   });
 
@@ -333,6 +344,7 @@
   function loop(now){
     const dt=now-last; last=now; const t=now*0.0007; sun.position.set(Math.sin(t)*60,60,Math.cos(t)*40); sunMesh.position.copy(sun.position);
     if(viewMode==='fp' && autoForward) movePlayer(MOVE_SPEED*dt/1000);
+    if(viewMode==='fp' && turnDir) { heading+=turnDir*EDGE_ROT_SPEED*dt/1000; lookFromHeading(); }
     if(anim){
       anim.t+=dt/anim.dur; const k=anim.t<1?(1-Math.cos(anim.t*Math.PI))/2:1;
       if(anim.type==='top'){ camera.position.lerpVectors(anim.from,anim.to,k); camera.lookAt(0,0,0); heading=Math.PI/2; camPos.copy(camera.position); if(anim.t>=1){ viewMode='top'; } }
