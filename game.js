@@ -278,10 +278,10 @@
   viewBtn.addEventListener('click',()=>{ if(viewMode==='fp') triggerTopView(); });
 
   // -------- Top View --------
-  let savedHeading=0, savedPos=null, topViewTimeout=null;
+  let savedHeading=0, topViewTimeout=null;
   function enterTopView(){
     if(viewMode==='top' || viewMode==='anim') return;
-    viewMode='anim'; savedHeading=heading; savedPos=camPos.clone();
+    viewMode='anim'; savedHeading=heading;
     anim={type:'top',t:0,dur:400,from:camPos.clone(),to:new THREE.Vector3(0, Math.max(W,H)*S*0.9, 0)};
     autoForward=false; clearTimeout(holdTimer); pointerDown=false;
     playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=true;
@@ -289,7 +289,7 @@
   function exitTopView(){
     if(viewMode!=='top') return;
     viewMode='anim';
-    anim={type:'fp',t:0,dur:400,from:camPos.clone(),to:savedPos.clone(),fromHead:Math.PI/2,toHead:savedHeading};
+    anim={type:'fp',t:0,dur:400,from:camera.position.clone(),to:camPos.clone(),fromHead:Math.PI/2,toHead:savedHeading};
     playerMarker.visible=false;
     if(currentDiff==='medium'){
       padsEnabled=false;
@@ -347,8 +347,8 @@
     if(viewMode==='fp' && turnDir) { heading+=turnDir*EDGE_ROT_SPEED*dt/1000; lookFromHeading(); }
     if(anim){
       anim.t+=dt/anim.dur; const k=anim.t<1?(1-Math.cos(anim.t*Math.PI))/2:1;
-      if(anim.type==='top'){ camera.position.lerpVectors(anim.from,anim.to,k); camera.lookAt(0,0,0); heading=Math.PI/2; camPos.copy(camera.position); if(anim.t>=1){ viewMode='top'; } }
-      else if(anim.type==='fp'){ camera.position.lerpVectors(anim.from,anim.to,k); heading=anim.fromHead+(anim.toHead-anim.fromHead)*k; camPos.copy(camera.position); lookFromHeading(); if(anim.t>=1){ viewMode='fp'; } }
+      if(anim.type==='top'){ camera.position.lerpVectors(anim.from,anim.to,k); camera.lookAt(0,0,0); heading=Math.PI/2; if(anim.t>=1){ viewMode='top'; } }
+      else if(anim.type==='fp'){ camera.position.lerpVectors(anim.from,anim.to,k); heading=anim.fromHead+(anim.toHead-anim.fromHead)*k; lookFromHeading(); if(anim.t>=1){ viewMode='fp'; } }
       if(anim.t>=1) anim=null;
     }
     playerMarker.position.set(camPos.x,0.05,camPos.z);
