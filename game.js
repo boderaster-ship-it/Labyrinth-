@@ -22,6 +22,7 @@
   const submitScore = document.getElementById('submitScore');
   const scoreboard = document.getElementById('scoreboard');
   const menuBtn = document.getElementById('menuBtn');
+  const viewBtn = document.getElementById('viewBtn');
   const timerEl = document.getElementById('timer');
 
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
@@ -32,7 +33,7 @@
   const WALL_H=4;              // wall height
   const WALL_T=0.3;            // wall thickness
   const EYE=1.6;               // eye height
-  const MOVE_SPEED=3;          // movement speed units per second
+  const MOVE_SPEED=3.9;        // movement speed units per second (30% faster)
   const PLAYER_R=0.3;          // collision radius
   let maze=null, goal=null;
   let px=0,py=0,heading=0;
@@ -41,6 +42,7 @@
   let viewMode='fp';           // 'fp' or 'top'
   let viewCells=[];            // cells enabling top view
   let viewMarkers=null;        // meshes marking view cells
+  let padsEnabled=true, padRestoreTimer=null; // control visibility of view pads
   let startTime=0;             // timer
   let timerInterval=null;      // timer interval id
   let autoForward=false;       // hold-to-move flag
@@ -162,24 +164,30 @@
     const gp=cellCenter(goal[0],goal[1]); goalSprite.position.set(gp.x,2.2,gp.z); scene.add(goalSprite);
 
     viewCells=[];
-    const count=Math.max(5, Math.round(Math.sqrt(W*H)/6));
-    const gx=Math.ceil(Math.sqrt(count));
-    const gy=Math.ceil(count/gx);
-    const stepX=W/gx, stepY=H/gy;
-    for(let y=0;y<gy;y++){
-      for(let x=0;x<gx && viewCells.length<count;x++){
-        const cx=Math.min(Math.floor(x*stepX+Math.random()*stepX),W-1);
-        const cy=Math.min(Math.floor(y*stepY+Math.random()*stepY),H-1);
-        viewCells.push([cx,cy]);
+    if(currentDiff!=='easy'){
+      const count=Math.max(5, Math.round(Math.sqrt(W*H)/6));
+      const gx=Math.ceil(Math.sqrt(count));
+      const gy=Math.ceil(count/gx);
+      const stepX=W/gx, stepY=H/gy;
+      for(let y=0;y<gy;y++){
+        for(let x=0;x<gx && viewCells.length<count;x++){
+          const cx=Math.min(Math.floor(x*stepX+Math.random()*stepX),W-1);
+          const cy=Math.min(Math.floor(y*stepY+Math.random()*stepY),H-1);
+          viewCells.push([cx,cy]);
+        }
       }
     }
     if(viewMarkers){ scene.remove(viewMarkers); viewMarkers.children.forEach(m=>m.geometry.dispose()); }
     viewMarkers=new THREE.Group();
-    for(const v of viewCells){
-      const mk=new THREE.Mesh(new THREE.CircleBufferGeometry(S*0.4,16), new THREE.MeshBasicMaterial({color:0x00aaff}));
-      mk.rotation.x=-Math.PI/2; const p=cellCenter(v[0],v[1]); mk.position.set(p.x,0.02,p.z); viewMarkers.add(mk);
+    if(currentDiff!=='easy'){
+      for(const v of viewCells){
+        const mk=new THREE.Mesh(new THREE.CircleBufferGeometry(S*0.4,16), new THREE.MeshBasicMaterial({color:0x00aaff}));
+        mk.rotation.x=-Math.PI/2; const p=cellCenter(v[0],v[1]); mk.position.set(p.x,0.02,p.z); viewMarkers.add(mk);
+      }
     }
     scene.add(viewMarkers);
+    padsEnabled=currentDiff!=='easy';
+    viewMarkers.visible=padsEnabled;
 
     px=0; py=0; heading=Math.PI/2; camPos=camPosForCell(px,py); camera.position.copy(camPos); lookFromHeading();
     playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false;
@@ -250,12 +258,13 @@
   document.addEventListener('pointermove',e=>{
     if(!pointerDown || viewMode!=='fp') return;
     const dx=e.clientX-startX;
-    heading+=dx*0.003;
+    heading+=dx*0.006;
     startX=e.clientX;
     lookFromHeading();
   });
 
   menuBtn.addEventListener('click',()=>resetToMenu());
+  viewBtn.addEventListener('click',()=>{ if(viewMode==='fp') triggerTopView(); });
 
   // -------- Top View --------
   let savedHeading=0, savedPos=null, topViewTimeout=null;
@@ -271,8 +280,14 @@
     viewMode='anim';
     anim={type:'fp',t:0,dur:400,from:camPos.clone(),to:savedPos.clone(),fromHead:Math.PI/2,toHead:savedHeading};
     playerMarker.visible=false;
+    if(currentDiff==='medium'){
+      padsEnabled=false;
+      if(viewMarkers) viewMarkers.visible=false;
+      clearTimeout(padRestoreTimer);
+      padRestoreTimer=setTimeout(()=>{ padsEnabled=true; if(viewMarkers) viewMarkers.visible=true; },120000);
+    }
   }
-  function onViewCell(x,y){ return viewCells.some(v=>v[0]===x && v[1]===y); }
+  function onViewCell(x,y){ return padsEnabled && viewCells.some(v=>v[0]===x && v[1]===y); }
   function triggerTopView(){
     enterTopView();
     clearTimeout(topViewTimeout);
@@ -302,12 +317,14 @@
     if(currentDiff==='easy'){ W=11; H=11; }
     else if(currentDiff==='medium'){ W=17; H=17; }
     else { W=25; H=25; }
-    menu.style.display='none'; hud.textContent='FPV-Labyrinth'; timerEl.textContent='0.0s'; menuBtn.style.display='block';
+    menu.style.display='none'; hud.textContent='FPV-Labyrinth'; timerEl.textContent='0.0s';
+    menuBtn.style.display='block'; viewBtn.style.display=currentDiff==='easy'?'block':'none';
+    clearTimeout(padRestoreTimer); padsEnabled=true; // reset pad state
     buildMaze(); playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false; startTimer(); }
 
   function resetToMenu(){
     win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value='';
-    timerEl.style.display='none'; menuBtn.style.display='none';
+    timerEl.style.display='none'; menuBtn.style.display='none'; viewBtn.style.display='none';
     viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false;
   }
 
