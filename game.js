@@ -60,6 +60,35 @@
   const EDGE_ROT_SPEED=3;      // radians/sec when holding at screen edge (100% faster)
   const EDGE_ZONE=50;          // px from screen edge for continuous turning
 
+  // -------- Audio --------
+  let audioCtx=null;
+  function initAudio(){
+    if(!audioCtx){
+      audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    }
+    if(audioCtx.state==='suspended') audioCtx.resume();
+  }
+  function playStepSound(){
+    if(!audioCtx) initAudio();
+    const ctx=audioCtx;
+    const dur=0.25;
+    const buffer=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);
+    const data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++){
+      const t=i/data.length;
+      data[i]=(Math.random()*2-1)*(1-t)*(1-t);
+    }
+    const src=ctx.createBufferSource();
+    const filter=ctx.createBiquadFilter();
+    filter.type='lowpass';
+    filter.frequency.value=450+Math.random()*200;
+    src.buffer=buffer;
+    src.connect(filter).connect(ctx.destination);
+    src.start();
+  }
+  const STEP_DIST=2.8;
+  let distSinceStep=0;
+
   // -------- Three.js Setup --------
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0xaad5ff,0.008);
@@ -226,6 +255,8 @@
   function movePlayer(step){
     let mx=Math.sin(heading)*step;
     let mz=-Math.cos(heading)*step;
+    const prevX=camPos.x;
+    const prevZ=camPos.z;
 
     let cx=Math.floor((camPos.x-originX)/S);
     let cy=Math.floor((camPos.z-originZ)/S);
@@ -259,11 +290,20 @@
     py=Math.floor((camPos.z-originZ)/S);
     if(px===goal[0] && py===goal[1]) showWin();
     if(onViewCell(px,py) && viewMode==='fp') triggerTopView();
+
+    const dx=camPos.x-prevX;
+    const dz=camPos.z-prevZ;
+    distSinceStep+=Math.hypot(dx,dz);
+    if(distSinceStep>STEP_DIST){
+      playStepSound();
+      distSinceStep=0;
+    }
   }
 
   // -------- Controls --------
   document.addEventListener('pointerdown',e=>{
     if(viewMode!=='fp') return;
+    initAudio();
     pointerDown=true; startX=e.clientX; startY=e.clientY;
     holdTimer=setTimeout(()=>{ autoForward=true; },500);
     if(e.clientX<EDGE_ZONE) turnDir=-1;
