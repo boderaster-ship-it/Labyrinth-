@@ -21,6 +21,7 @@
   const playerName = document.getElementById('playerName');
   const submitScore = document.getElementById('submitScore');
   const scoreboard = document.getElementById('scoreboard');
+  const menuScoreboard = document.getElementById('menuScoreboard');
   const menuBtn = document.getElementById('menuBtn');
   const viewBtn = document.getElementById('viewBtn');
   const timerEl = document.getElementById('timer');
@@ -35,7 +36,7 @@
   const WALL_H=4;              // wall height
   const WALL_T=0.3;            // wall thickness
   const EYE=1.6;               // eye height
-  const MOVE_SPEED=5.85;       // movement speed units per second (50% faster)
+  const MOVE_SPEED=7.31;       // movement speed units per second (25% faster)
   const PLAYER_R=0.3;          // collision radius
   let maze=null, goal=null;
   let px=0,py=0,heading=0;
@@ -120,6 +121,8 @@
 
   const floorMat = new THREE.MeshStandardMaterial({color:0x1e242b, roughness:0.95});
   let floor=null, wallsGroup=null, goalSprite=null, playerMarker=null;
+  const portalsGroup=new THREE.Group(); scene.add(portalsGroup);
+  let portals=[]; let lastPortal=null;
 
   // simple clouds
   const cloudTex=(function(){
@@ -142,6 +145,7 @@
   scene.add(clouds);
 
   const sunMesh=new THREE.Mesh(new THREE.SphereBufferGeometry(3,16,8), new THREE.MeshBasicMaterial({color:0xfff0e0}));
+  sunMesh.position.copy(sun.position);
   scene.add(sunMesh);
 
   playerMarker=new THREE.Mesh(new THREE.CircleBufferGeometry(S*0.3,16), new THREE.MeshBasicMaterial({color:0xffff00}));
@@ -229,8 +233,36 @@
     padsEnabled=currentDiff!=='easy';
     viewMarkers.visible=padsEnabled;
 
+    placePortals();
+
     px=0; py=0; heading=Math.PI/2; camPos=camPosForCell(px,py); camera.position.copy(camPos); lookFromHeading();
     playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false;
+  }
+
+  function placePortals(){
+    portalsGroup.clear();
+    portals=[];
+    const pairCount=currentDiff==='easy'?1:currentDiff==='medium'?2:3;
+    const used=new Set(['0,0', goal[0]+','+goal[1]]);
+    function randCell(){
+      let x,y; do{ x=Math.floor(Math.random()*W); y=Math.floor(Math.random()*H); }while(used.has(x+','+y));
+      used.add(x+','+y); return {x,y};
+    }
+    const colors=[0xff00ff,0x00ffff,0xffaa00];
+    for(let i=0;i<pairCount;i++){
+      const c1=randCell(), c2=randCell();
+      const m1=makePortalMesh(colors[i%colors.length]);
+      const m2=makePortalMesh(colors[i%colors.length]);
+      const p1={x:c1.x,y:c1.y,mesh:m1};
+      const p2={x:c2.x,y:c2.y,mesh:m2};
+      p1.link=p2; p2.link=p1; portals.push(p1,p2);
+      const cc1=cellCenter(c1.x,c1.y); m1.position.set(cc1.x,0.1,cc1.z); portalsGroup.add(m1);
+      const cc2=cellCenter(c2.x,c2.y); m2.position.set(cc2.x,0.1,cc2.z); portalsGroup.add(m2);
+    }
+  }
+
+  function makePortalMesh(color){
+    return new THREE.Mesh(new THREE.CylinderBufferGeometry(S*0.3,S*0.3,0.2,16), new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.8}));
   }
 
   function makeGoalSprite(txt){
@@ -290,6 +322,7 @@
     py=Math.floor((camPos.z-originZ)/S);
     if(px===goal[0] && py===goal[1]) showWin();
     if(onViewCell(px,py) && viewMode==='fp') triggerTopView();
+    [px,py]=checkPortal(px,py);
 
     const dx=camPos.x-prevX;
     const dz=camPos.z-prevZ;
@@ -298,6 +331,23 @@
       playStepSound();
       distSinceStep=0;
     }
+  }
+
+  function checkPortal(cx,cy){
+    for(const p of portals){
+      if(p!==lastPortal && p.x===cx && p.y===cy){
+        const dest=p.link;
+        const ctr=cellCenter(dest.x,dest.y);
+        camPos.set(ctr.x,EYE,ctr.z);
+        camera.position.copy(camPos);
+        lookFromHeading();
+        lastPortal=dest;
+        distSinceStep=0;
+        return [dest.x,dest.y];
+      }
+    }
+    if(!portals.some(p=>p.x===cx && p.y===cy)) lastPortal=null;
+    return [cx,cy];
   }
 
   // -------- Controls --------
@@ -336,7 +386,12 @@
   function enterTopView(){
     if(viewMode==='top' || viewMode==='anim') return;
     viewMode='anim'; savedHeading=heading;
-    anim={type:'top',t:0,dur:400,from:camPos.clone(),to:new THREE.Vector3(0, Math.max(W,H)*S*0.9, 0)};
+    const fov=camera.fov*Math.PI/180;
+    const aspect=camera.aspect;
+    const mapW=W*S;
+    const mapH=H*S;
+    const reqH=Math.max((mapH/2)/Math.tan(fov/2), (mapW/2)/(Math.tan(fov/2)*aspect));
+    anim={type:'top',t:0,dur:400,from:camPos.clone(),to:new THREE.Vector3(0, reqH+1, 0)};
     autoForward=false; clearTimeout(holdTimer); pointerDown=false;
     playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=true;
   }
@@ -386,7 +441,8 @@
     fetch('/api/scores')
       .then(r=>r.json())
       .then(list=>{
-        scoreboard.innerHTML='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
+        const html='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
+        scoreboard.innerHTML=html; menuScoreboard.innerHTML=html;
         const local=JSON.parse(localStorage.getItem('localScores')||'[]');
         if(local.length){
           Promise.all(local.map(s=>fetch('/api/scores',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(s)})))
@@ -396,11 +452,13 @@
       })
       .catch(()=>{
         const local=JSON.parse(localStorage.getItem('localScores')||'[]');
+        let html;
         if(local.length){
-          scoreboard.innerHTML='<h3>Bestenliste</h3>'+local.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
+          html='<h3>Bestenliste</h3>'+local.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
         }else{
-          scoreboard.innerHTML='<h3>Bestenliste</h3><div>Fehler beim Laden</div>';
+          html='<h3>Bestenliste</h3><div>Fehler beim Laden</div>';
         }
+        scoreboard.innerHTML=html; menuScoreboard.innerHTML=html;
       });
   }
   function showWin(){ stopTimer(); const t=(performance.now()-startTime)/1000; finalTimeEl.textContent=t.toFixed(2); win.style.display='flex'; fetchScores(); }
@@ -423,12 +481,13 @@
     win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value='';
     timerEl.style.display='none'; menuBtn.style.display='none'; viewBtn.style.display='none';
     viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false; lookUp=false; pitch=0;
+    fetchScores();
   }
 
   // -------- Render Loop --------
   let last=performance.now();
   function loop(now){
-    const dt=now-last; last=now; const t=now*0.0007; sun.position.set(Math.sin(t)*60,60,Math.cos(t)*40); sunMesh.position.copy(sun.position);
+    const dt=now-last; last=now;
     if(viewMode==='fp' && autoForward) movePlayer(MOVE_SPEED*dt/1000);
     if(viewMode==='fp' && turnDir) { heading+=turnDir*EDGE_ROT_SPEED*dt/1000; lookFromHeading(); }
     if(anim){
@@ -442,6 +501,7 @@
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+  fetchScores();
 
   window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
 
