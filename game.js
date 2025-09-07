@@ -25,7 +25,9 @@
   const viewBtn = document.getElementById('viewBtn');
   const timerEl = document.getElementById('timer');
 
-  if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
 
   // -------- Game State --------
   let W=17,H=17;               // maze size
@@ -49,9 +51,13 @@
   let holdTimer=null;          // delay timer for auto move
   let pointerDown=false;       // pointer state
   let startX=0;                // pointer start x
+  let startY=0;                // pointer start y
   let turnDir=0;               // -1 left, 1 right, 0 none
+  let lookUp=false;            // whether camera is tilted up
+  let pitch=0;                 // camera pitch
+  const LOOK_UP_PITCH=Math.PI/4; // tilt angle when looking up
   const ROT_SPEED=0.009;       // rotation per pixel (50% faster)
-  const EDGE_ROT_SPEED=1.5;    // radians/sec when holding at screen edge
+  const EDGE_ROT_SPEED=3;      // radians/sec when holding at screen edge (100% faster)
   const EDGE_ZONE=50;          // px from screen edge for continuous turning
 
   // -------- Three.js Setup --------
@@ -210,7 +216,12 @@
   }
 
   function camPosForCell(cx,cy){ const c=cellCenter(cx,cy); return new THREE.Vector3(c.x,EYE,c.z); }
-  function lookFromHeading(){ const dx=Math.sin(heading), dz=-Math.cos(heading); camera.lookAt(camPos.x+dx,EYE,camPos.z+dz); }
+  function lookFromHeading(){
+    const dx=Math.sin(heading)*Math.cos(pitch);
+    const dz=-Math.cos(heading)*Math.cos(pitch);
+    const dy=Math.sin(pitch);
+    camera.lookAt(camPos.x+dx, EYE+dy, camPos.z+dz);
+  }
 
   function movePlayer(step){
     let mx=Math.sin(heading)*step;
@@ -253,7 +264,7 @@
   // -------- Controls --------
   document.addEventListener('pointerdown',e=>{
     if(viewMode!=='fp') return;
-    pointerDown=true; startX=e.clientX;
+    pointerDown=true; startX=e.clientX; startY=e.clientY;
     holdTimer=setTimeout(()=>{ autoForward=true; },500);
     if(e.clientX<EDGE_ZONE) turnDir=-1;
     else if(e.clientX>window.innerWidth-EDGE_ZONE) turnDir=1;
@@ -266,7 +277,10 @@
   document.addEventListener('pointermove',e=>{
     if(!pointerDown || viewMode!=='fp') return;
     const dx=e.clientX-startX;
+    const dy=e.clientY-startY;
     heading+=dx*ROT_SPEED;
+    if(!lookUp && dy<-60){ lookUp=true; pitch=LOOK_UP_PITCH; startY=e.clientY; }
+    else if(lookUp && dy>60){ lookUp=false; pitch=0; startY=e.clientY; }
     startX=e.clientX;
     if(e.clientX<EDGE_ZONE) turnDir=-1;
     else if(e.clientX>window.innerWidth-EDGE_ZONE) turnDir=1;
@@ -278,7 +292,7 @@
   viewBtn.addEventListener('click',()=>{ if(viewMode==='fp') triggerTopView(); });
 
   // -------- Top View --------
-  let savedHeading=0, topViewTimeout=null;
+  let savedHeading=0;
   function enterTopView(){
     if(viewMode==='top' || viewMode==='anim') return;
     viewMode='anim'; savedHeading=heading;
@@ -301,8 +315,13 @@
   function onViewCell(x,y){ return padsEnabled && viewCells.some(v=>v[0]===x && v[1]===y); }
   function triggerTopView(){
     enterTopView();
-    clearTimeout(topViewTimeout);
-    topViewTimeout=setTimeout(()=>exitTopView(),2500);
+    function onTap(){
+      if(viewMode==='top'){
+        document.removeEventListener('pointerdown',onTap);
+        exitTopView();
+      }
+    }
+    document.addEventListener('pointerdown',onTap);
   }
 
   // -------- Timer & Leaderboard --------
@@ -316,7 +335,12 @@
       .then(()=>fetchScores());
     nameEntry.style.display='none';
   });
-  function fetchScores(){ fetch('/api/scores').then(r=>r.json()).then(list=>{ scoreboard.innerHTML='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join(''); }); }
+  function fetchScores(){
+    fetch('/api/scores')
+      .then(r=>r.json())
+      .then(list=>{ scoreboard.innerHTML='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join(''); })
+      .catch(()=>{ scoreboard.innerHTML='<h3>Bestenliste</h3><div>Fehler beim Laden</div>'; });
+  }
   function showWin(){ stopTimer(); const t=(performance.now()-startTime)/1000; finalTimeEl.textContent=t.toFixed(2); win.style.display='flex'; fetchScores(); }
   win.addEventListener('click', e=>{ if(e.target===win){ resetToMenu(); }});
 
@@ -336,7 +360,7 @@
   function resetToMenu(){
     win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value='';
     timerEl.style.display='none'; menuBtn.style.display='none'; viewBtn.style.display='none';
-    viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false;
+    viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false; lookUp=false; pitch=0;
   }
 
   // -------- Render Loop --------
