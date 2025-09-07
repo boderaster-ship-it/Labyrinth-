@@ -371,15 +371,37 @@
   submitScore.addEventListener('click', ()=>{
     const name=playerName.value.trim()||'Anonym';
     const time=parseFloat(finalTimeEl.textContent);
-    fetch('/api/scores', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,time})})
-      .then(()=>fetchScores());
+    const score={name,time};
+    fetch('/api/scores', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(score)})
+      .then(()=>fetchScores())
+      .catch(()=>{
+        const local=JSON.parse(localStorage.getItem('localScores')||'[]');
+        local.push(score);
+        localStorage.setItem('localScores', JSON.stringify(local));
+        fetchScores();
+      });
     nameEntry.style.display='none';
   });
   function fetchScores(){
     fetch('/api/scores')
       .then(r=>r.json())
-      .then(list=>{ scoreboard.innerHTML='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join(''); })
-      .catch(()=>{ scoreboard.innerHTML='<h3>Bestenliste</h3><div>Fehler beim Laden</div>'; });
+      .then(list=>{
+        scoreboard.innerHTML='<h3>Bestenliste</h3>'+list.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
+        const local=JSON.parse(localStorage.getItem('localScores')||'[]');
+        if(local.length){
+          Promise.all(local.map(s=>fetch('/api/scores',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(s)})))
+            .then(()=>localStorage.removeItem('localScores'))
+            .catch(()=>{});
+        }
+      })
+      .catch(()=>{
+        const local=JSON.parse(localStorage.getItem('localScores')||'[]');
+        if(local.length){
+          scoreboard.innerHTML='<h3>Bestenliste</h3>'+local.map(s=>`<div>${s.name} - ${s.time.toFixed(2)}s</div>`).join('');
+        }else{
+          scoreboard.innerHTML='<h3>Bestenliste</h3><div>Fehler beim Laden</div>';
+        }
+      });
   }
   function showWin(){ stopTimer(); const t=(performance.now()-startTime)/1000; finalTimeEl.textContent=t.toFixed(2); win.style.display='flex'; fetchScores(); }
   win.addEventListener('click', e=>{ if(e.target===win){ resetToMenu(); }});
