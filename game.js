@@ -474,12 +474,18 @@
     else { W=25; H=25; }
     menu.style.display='none'; hud.textContent='FPV-Labyrinth'; timerEl.textContent='0.0s';
     menuBtn.style.display='block'; viewBtn.style.display=currentDiff==='easy'?'block':'none';
+    if(screen.orientation && screen.orientation.lock){
+      screen.orientation.lock('landscape').catch(()=>{});
+    }
     clearTimeout(padRestoreTimer); padsEnabled=true; // reset pad state
     buildMaze(); playerMarker.position.set(camPos.x,0.05,camPos.z); playerMarker.visible=false; startTimer(); }
 
   function resetToMenu(){
     win.style.display='none'; menu.style.display='flex'; scoreboard.innerHTML=''; nameEntry.style.display='block'; playerName.value='';
     timerEl.style.display='none'; menuBtn.style.display='none'; viewBtn.style.display='none';
+    if(screen.orientation && screen.orientation.unlock){
+      screen.orientation.unlock();
+    }
     viewMode='fp'; clearInterval(timerInterval); autoForward=false; playerMarker.visible=false; lookUp=false; pitch=0;
     fetchScores();
   }
