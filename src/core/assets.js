@@ -3,17 +3,16 @@ import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/
 
 const MODEL_BASE = './assets/models';
 const TEXTURE_BASE = './assets/textures';
+const TARGET_CAR_LENGTH_METERS = 4.5;
 
 const ASSET_REGISTRY = {
   models: {
     race: `${MODEL_BASE}/race.glb`,
     roadStraight: `${MODEL_BASE}/road-straight.glb`,
-    roadBend: `${MODEL_BASE}/road-bend.glb`,
     roadCurve: `${MODEL_BASE}/road-curve.glb`,
   },
   textures: {
     roadSurface: `${TEXTURE_BASE}/colormap.png`,
-    groundVariation: `${TEXTURE_BASE}/variation-a.png`,
   },
 };
 
@@ -30,6 +29,19 @@ function computeModelMetrics(root) {
     center,
     spanXZ: Math.max(size.x, size.z),
   };
+}
+
+function normalizeRaceScale(model) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+
+  if (size.z <= 0) {
+    throw new Error('Race-Modell hat keine gültige Länge auf der Z-Achse.');
+  }
+
+  const scaleFactor = TARGET_CAR_LENGTH_METERS / size.z;
+  model.scale.setScalar(scaleFactor);
 }
 
 export function createAssetPipeline() {
@@ -67,6 +79,10 @@ export function createAssetPipeline() {
       throw new Error(`Modell "${key}" wurde geladen, enthält aber keine Szene.`);
     }
 
+    if (key === 'race') {
+      normalizeRaceScale(gltf.scene);
+    }
+
     modelCache.set(key, gltf.scene);
     return gltf.scene;
   };
@@ -92,14 +108,7 @@ export function createAssetPipeline() {
     loadModel,
     loadTexture,
     async loadRequired() {
-      await Promise.all([
-        loadModel('race'),
-        loadModel('roadStraight'),
-        loadModel('roadBend'),
-        loadModel('roadCurve'),
-        loadTexture('roadSurface'),
-        loadTexture('groundVariation'),
-      ]);
+      await Promise.all([loadModel('race'), loadModel('roadStraight'), loadModel('roadCurve'), loadTexture('roadSurface')]);
     },
     async getModelMetrics(key) {
       const model = await loadModel(key);
