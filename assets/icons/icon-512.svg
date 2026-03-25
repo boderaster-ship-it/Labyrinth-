@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Open Road Prototype Icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0d14"/>
+      <stop offset="100%" stop-color="#13233d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="72" fill="url(#bg)"/>
+  <rect x="56" y="56" width="400" height="400" rx="62" fill="#162846" stroke="#4da3ff" stroke-width="10"/>
+  <path d="M142 304 L196 202 L370 202 L316 304 Z" fill="#66b2ff"/>
+  <rect x="198" y="244" width="116" height="28" rx="14" fill="#e0ecff"/>
+</svg>
