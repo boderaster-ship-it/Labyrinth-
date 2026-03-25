@@ -1,13 +1,9 @@
 {
-  "name": "fpv-labyrinth",
-  "version": "1.0.0",
-  "description": "3D Labyrinth PWA",
-  "main": "server.js",
+  "name": "open-road-prototype",
+  "version": "2.0.0",
+  "description": "Mobile-first 3D open-road racing prototype PWA",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "test": "node --check game.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2"
+    "test": "node --check src/main.js && node --check src/core/app.js && node --check service-worker.js"
   }
 }

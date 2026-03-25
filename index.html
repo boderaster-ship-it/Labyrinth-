@@ -1,54 +1,56 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="manifest" href="manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>FPV Labyrinth</title>
-  <style>
-    *{-webkit-user-select:none;-ms-user-select:none;user-select:none}
-    input{-webkit-user-select:text;-ms-user-select:text;user-select:text}
-    html,body{margin:0;height:100%;overflow:hidden;background:#0b0f14;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-    #hud{position:fixed;left:10px;top:10px;color:#e9eef6;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);padding:8px 10px;border-radius:10px;font-size:12px;z-index:10}
-    #err{position:fixed;left:10px;right:10px;top:10px;background:#300;color:#fff;padding:8px 10px;border-radius:10px;font-size:12px;display:none;white-space:pre-wrap;z-index:11}
-    #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:22px;text-align:center;z-index:20}
-    #win div{background:rgba(0,0,0,.6);padding:16px 20px;border-radius:14px}
-    #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b0f14;color:#e9eef6;z-index:30;flex-direction:column;text-align:center}
-    #menu button{margin:8px;padding:12px 16px;border:none;border-radius:12px;font-size:18px;background:#1e242b;color:#e9eef6}
-    #menu button:active{transform:scale(.97)}
-    #scoreboard{margin-top:10px;text-align:left;font-size:14px}
-    #menuScoreboard{margin-top:20px;text-align:left;font-size:14px}
-    #timer{position:fixed;left:50%;top:10px;transform:translateX(-50%);color:#e9eef6;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);padding:8px 10px;border-radius:10px;font-size:12px;z-index:10;display:none}
-    #menuBtn{position:fixed;left:10px;bottom:10px;z-index:10;padding:8px 10px;border:none;border-radius:10px;background:rgba(0,0,0,.35);color:#e9eef6;font-size:12px;display:none}
-    #viewBtn{position:fixed;right:10px;bottom:10px;z-index:10;padding:8px 10px;border:none;border-radius:10px;background:rgba(0,0,0,.35);color:#e9eef6;font-size:12px;display:none}
-  </style>
-</head>
-<body>
-  <div id="menu">
-    <h1>FPV Labyrinth</h1>
-    <p>Wähle den Schwierigkeitsgrad:</p>
-    <button data-diff="easy">Einfach</button>
-    <button data-diff="medium">Mittel</button>
-    <button data-diff="hard">Schwer</button>
-    <div id="menuScoreboard"></div>
-  </div>
-  <div id="hud">FPV-Labyrinth</div>
-  <div id="timer"></div>
-  <div id="err"></div>
-  <button id="menuBtn">Menü</button>
-  <button id="viewBtn">Karte</button>
-  <div id="win"><div>
-    <div id="winText">🎉 Geschafft!<br>Deine Zeit: <span id="finalTime"></span>s</div>
-    <div id="nameEntry" style="margin-top:10px;">
-      <input id="playerName" placeholder="Name" maxlength="12" style="padding:6px;border-radius:6px;border:none;">
-      <button id="submitScore" style="padding:6px 10px;border:none;border-radius:6px;background:#1e242b;color:#e9eef6">Senden</button>
-    </div>
-    <div id="scoreboard"></div>
-  </div></div>
-  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-  <script src="game.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Open Road Prototype</title>
+    <meta name="description" content="Mobile-first 3D open-world racing prototype as progressive web app." />
+    <meta name="theme-color" content="#0a0d14" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.svg" />
+    <link rel="apple-touch-icon" href="./assets/icons/icon-192.svg" />
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <main id="app">
+      <div id="render-root" aria-label="3D Spielbereich"></div>
+
+      <section id="menu" class="overlay visible" aria-label="Startmenü">
+        <div class="panel">
+          <h1>Open Road Prototype</h1>
+          <p>Technische 3D-Racing-Basis für Mobile und GitHub Pages.</p>
+          <button id="start-btn" class="primary">Start</button>
+        </div>
+      </section>
+
+      <section id="hud" class="hud hidden" aria-live="polite">
+        <div><strong>Geschwindigkeit</strong> <span id="speed">0</span> km/h</div>
+        <div><strong>Modus</strong> <span id="mode">Fahrt</span></div>
+      </section>
+
+      <button id="pause-btn" class="floating hidden" type="button">Menü</button>
+
+      <section id="touch-controls" class="controls hidden" aria-label="Touch-Steuerung">
+        <div class="left-pad">
+          <button id="touch-left" aria-label="Links lenken">◀</button>
+          <button id="touch-right" aria-label="Rechts lenken">▶</button>
+        </div>
+        <div class="right-pad">
+          <button id="touch-brake" aria-label="Bremsen">Bremse</button>
+          <button id="touch-throttle" aria-label="Gas geben">Gas</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
 </html>
