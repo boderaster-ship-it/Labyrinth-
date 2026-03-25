@@ -74,7 +74,7 @@ export async function createVehicle(scene, assetPipeline, worldData) {
       vehicleRoot.rotation.y -= input.steer * steeringGain * dt;
 
       heading.set(0, 0, -1).applyQuaternion(vehicleRoot.quaternion);
-      vehicleRoot.position.addScaledVector(heading, state.speed * dt);
+      vehicleRoot.position.addScaledVector(heading, -state.speed * dt);
       vehicleRoot.position.y = worldData.roadY;
 
       vehicleRoot.position.x = THREE.MathUtils.clamp(vehicleRoot.position.x, worldData.bounds.minX, worldData.bounds.maxX);
