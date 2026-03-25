@@ -19,4 +19,6 @@ const app = new RacingApp({
   },
 });
 
-app.init();
+app.init().catch((error) => {
+  console.error('Initialisierung fehlgeschlagen:', error);
+});

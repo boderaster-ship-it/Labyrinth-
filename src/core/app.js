@@ -13,16 +13,25 @@ export class RacingApp {
     this.lastTime = 0;
   }
 
-  init() {
+  async init() {
     const { scene, camera, renderer } = createScene(this.ui.renderRoot);
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
 
     this.assetPipeline = createAssetPipeline();
-    createWorld(scene);
-    this.vehicle = createVehicle(scene);
-    this.followCamera = createFollowCamera(camera, this.vehicle.object);
+
+    try {
+      await this.assetPipeline.loadRequired();
+      this.world = await createWorld(scene, this.assetPipeline);
+      this.vehicle = await createVehicle(scene, this.assetPipeline, this.world);
+    } catch (error) {
+      console.error(error);
+      this.showFatalError(`Asset-Ladefehler: ${error.message}`);
+      throw error;
+    }
+
+    this.followCamera = createFollowCamera(camera, this.vehicle.object, this.vehicle.cameraProfile);
     this.input = createInputSystem(this.ui.controls);
     this.hud = createHud(this.ui.hud);
 
@@ -33,6 +42,19 @@ export class RacingApp {
 
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
+  }
+
+  showFatalError(message) {
+    this.ui.menu.classList.add('visible');
+    this.ui.startBtn.disabled = true;
+    this.ui.startBtn.textContent = 'Laden fehlgeschlagen';
+    const panel = this.ui.menu.querySelector('.panel');
+    if (!panel) return;
+
+    const errorLine = document.createElement('p');
+    errorLine.textContent = message;
+    errorLine.style.color = '#ff9ca7';
+    panel.appendChild(errorLine);
   }
 
   bindUI() {
