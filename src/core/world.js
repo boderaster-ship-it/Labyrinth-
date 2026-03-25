@@ -3,35 +3,11 @@ import * as THREE from 'three';
 const TARGET_ROAD_WIDTH_METERS = 7;
 const WORLD_SIZE_METERS = 200;
 
-function configureRoadTexture(texture, anisotropy) {
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(10, 10);
-  texture.anisotropy = anisotropy;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-}
-
 function enableShadows(node) {
   node.traverse((child) => {
     if (!child.isMesh) return;
     child.castShadow = true;
     child.receiveShadow = true;
-  });
-}
-
-function applyRoadMaterial(node, baseTexture) {
-  node.traverse((child) => {
-    if (!child.isMesh) return;
-
-    const map = baseTexture.clone();
-    map.needsUpdate = true;
-
-    child.material = new THREE.MeshStandardMaterial({
-      map,
-      roughness: 0.82,
-      metalness: 0.04,
-    });
   });
 }
 
@@ -107,17 +83,13 @@ function createEnvironment(world, trackBounds, roadY) {
   world.add(border);
 }
 
-export async function createWorld(scene, assetPipeline, renderer) {
+export async function createWorld(scene, assetPipeline) {
   const world = new THREE.Group();
 
-  const [roadStraightSource, roadCurveSource, roadTexture] = await Promise.all([
+  const [roadStraightSource, roadCurveSource] = await Promise.all([
     assetPipeline.loadModel('roadStraight'),
     assetPipeline.loadModel('roadCurve'),
-    assetPipeline.loadTexture('roadSurface'),
   ]);
-
-  const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() ?? 8;
-  configureRoadTexture(roadTexture, Math.min(maxAnisotropy, 8));
 
   const scale = getRoadScale(roadStraightSource);
   const laneStep = 14;
@@ -134,7 +106,6 @@ export async function createWorld(scene, assetPipeline, renderer) {
     instance.position.copy(piece.position);
     instance.rotation.y = piece.rotation;
 
-    applyRoadMaterial(instance, roadTexture);
     enableShadows(instance);
     world.add(instance);
 

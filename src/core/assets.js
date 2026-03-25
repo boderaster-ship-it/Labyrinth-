@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
 
 const MODEL_BASE = './assets/models';
-const TEXTURE_BASE = './assets/textures';
 const TARGET_CAR_LENGTH_METERS = 4.5;
 
 const ASSET_REGISTRY = {
@@ -11,9 +10,7 @@ const ASSET_REGISTRY = {
     roadStraight: `${MODEL_BASE}/road-straight.glb`,
     roadCurve: `${MODEL_BASE}/road-curve.glb`,
   },
-  textures: {
-    roadSurface: `${TEXTURE_BASE}/colormap.png`,
-  },
+  textures: {},
 };
 
 function computeModelMetrics(root) {
@@ -108,7 +105,7 @@ export function createAssetPipeline() {
     loadModel,
     loadTexture,
     async loadRequired() {
-      await Promise.all([loadModel('race'), loadModel('roadStraight'), loadModel('roadCurve'), loadTexture('roadSurface')]);
+      await Promise.all([loadModel('race'), loadModel('roadStraight'), loadModel('roadCurve')]);
     },
     async getModelMetrics(key) {
       const model = await loadModel(key);
