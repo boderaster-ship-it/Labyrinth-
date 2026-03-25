@@ -1,25 +1,53 @@
 import * as THREE from 'three';
 
-export function createVehicle(scene) {
+function getModelMetrics(model) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  return { box, size, center };
+}
+
+function prepareVehicleModel(model) {
+  model.traverse((child) => {
+    if (!child.isMesh) return;
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
+
+  const { size, center, box } = getModelMetrics(model);
+  if (size.lengthSq() === 0) {
+    throw new Error('Race-Modell hat keine gültige Geometrie.');
+  }
+
+  const targetLength = 3.6;
+  const dominantAxis = Math.max(size.x, size.z);
+  const uniformScale = targetLength / dominantAxis;
+  model.scale.setScalar(uniformScale);
+
+  const scaledBox = new THREE.Box3().setFromObject(model);
+  const scaledCenter = new THREE.Vector3();
+  scaledBox.getCenter(scaledCenter);
+
+  model.position.x -= scaledCenter.x;
+  model.position.z -= scaledCenter.z;
+  model.position.y -= scaledBox.min.y;
+
+  return {
+    cabinHeight: Math.max(0.8, (box.max.y - center.y) * uniformScale + 0.8),
+    length: targetLength,
+  };
+}
+
+export async function createVehicle(scene, assetPipeline, worldData) {
   const root = new THREE.Group();
+  const model = (await assetPipeline.loadModel('race')).clone(true);
+  const metrics = prepareVehicleModel(model);
 
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.8, 0.7, 3.4),
-    new THREE.MeshStandardMaterial({ color: 0xff4d4d, roughness: 0.45, metalness: 0.2 })
-  );
-  body.position.y = 0.6;
-  body.castShadow = true;
-  root.add(body);
+  root.add(model);
+  root.position.copy(worldData.spawn);
 
-  const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 0.5, 1.5),
-    new THREE.MeshStandardMaterial({ color: 0xd5deef, roughness: 0.2, metalness: 0.4 })
-  );
-  cabin.position.set(0, 1.1, -0.2);
-  cabin.castShadow = true;
-  root.add(cabin);
-
-  root.position.set(0, 0, 40);
   scene.add(root);
 
   const state = {
@@ -34,6 +62,12 @@ export function createVehicle(scene) {
 
   return {
     object: root,
+    model,
+    cameraProfile: {
+      followDistance: metrics.length * 2.8,
+      followHeight: metrics.cabinHeight + 1.6,
+      lookAtHeight: metrics.cabinHeight,
+    },
     state,
     update(input, dt) {
       const throttleForce = input.throttle * state.acceleration;
@@ -55,8 +89,8 @@ export function createVehicle(scene) {
       const heading = new THREE.Vector3(0, 0, -1).applyQuaternion(root.quaternion);
       root.position.addScaledVector(heading, state.speed * dt);
 
-      root.position.x = THREE.MathUtils.clamp(root.position.x, -180, 180);
-      root.position.z = THREE.MathUtils.clamp(root.position.z, -290, 290);
+      root.position.x = THREE.MathUtils.clamp(root.position.x, worldData.bounds.minX, worldData.bounds.maxX);
+      root.position.z = THREE.MathUtils.clamp(root.position.z, worldData.bounds.minZ, worldData.bounds.maxZ);
 
       return state;
     },

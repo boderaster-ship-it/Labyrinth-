@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
-export function createFollowCamera(camera, target) {
-  const offset = new THREE.Vector3(0, 4.2, 9.5);
-  const lookAtLift = new THREE.Vector3(0, 1.2, 0);
+export function createFollowCamera(camera, target, profile = {}) {
+  const offset = new THREE.Vector3(0, profile.followHeight ?? 4.2, profile.followDistance ?? 9.5);
+  const lookAtLift = new THREE.Vector3(0, profile.lookAtHeight ?? 1.2, 0);
   const desired = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
 
