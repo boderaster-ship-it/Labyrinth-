@@ -23,7 +23,7 @@ export class RacingApp {
 
     try {
       await this.assetPipeline.loadRequired();
-      this.world = await createWorld(scene, this.assetPipeline);
+      this.world = await createWorld(scene, this.assetPipeline, renderer);
       this.vehicle = await createVehicle(scene, this.assetPipeline, this.world);
     } catch (error) {
       console.error(error);
